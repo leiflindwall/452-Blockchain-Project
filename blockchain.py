@@ -4,12 +4,15 @@ from time import time
 from uuid import uuid4
 from textwrap import dedent
 from flask import Flask, jsonify, request
+from urllib.parse import urlparse
+import requests
 
 
 class Blockchain(object):
     def __init__(self):
         self.current_transactions = []
         self.chain = []
+        self.nodes = set()
 
         # Create the genesis block
         # this is the first block in the blockchain
@@ -89,6 +92,67 @@ class Blockchain(object):
         return guess_hash[:4] == "0000"
 
 
+    # add a new node to the list of nodes
+    def register_node(self, address):
+        parsed_url = urlparse(address)
+        self.nodes.add(parsed_url.netloc)
+
+
+    # determine if the blockchain is valid
+    def valid_chain(self, chain):
+        last_block = chain[0]
+        current_index = 1
+
+        while current_index < len(chain):
+            block = chain[current_index]
+            print(f'{last_block}')
+            print(f'{block}')
+            print("\n---------\n")
+
+            # check that the hash of the block is correct
+            if block['previous_hash'] != self.hash(last_block):
+                return False
+
+            # check that the PoW is correct
+            if not self.valid_proof(last_block['proof'], block['proof']):
+                return False
+
+            last_block = block
+            current_index += 1
+
+        return True
+
+
+    # The consensus Algorithm: sets the chain to the longest chain in the network
+    def resolve_conflicts(self):
+        neighbors = self.nodes
+        new_chain = None
+
+        # we are looking for a longer chain
+        max_length = len(self.chain)
+
+        # fetch and verify all the chains in the network
+        for node in neighbors:
+            response = requests.get(f'http://{node}/chain')
+
+            if response.status_code == 200:
+                length = response.json()['length']
+                chain = response.json()['chain']
+
+                # check if the length is longer and the chain is valid
+                if length > max_length and self.valid_chain(chain):
+                    max_length = length
+                    new_chain = chain
+
+                # replace the chain if we found the new longer chain
+                if new_chain:
+                    self.chain = new_chain
+                    return True
+
+                return False
+
+
+
 # Instantiate our Node
 app = Flask(__name__)
 
@@ -150,6 +214,26 @@ def full_chain():
         'length': len(blockchain.chain),
     }
     return jsonify(response), 200
+
+
+@app.route('/nodes/resolve', methods=['GET'])
+def consensus():
+    replaced = blockchain.resolve_conflicts()
+
+    if replaced:
+        response = {
+            'message': 'The chain has been updated',
+            'new_chain': blockchain.chain
+        }
+    else:
+        response = {
+            'message': 'Our chain is the most recent',
+            'chain': blockchain.chain
+        }
+
+    return jsonify(response), 200
+
+
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000)
