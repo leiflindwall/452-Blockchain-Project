@@ -16,4 +16,6 @@ Instructions:
   
    -install flask for python -> sudo apt-get install python3-flask
    
+   -install python3-rsa -> sudo apt-get install python3-rsa
+   
    -install an http client - I am using postman -> https://gist.github.com/SanderTheDragon/1331397932abaa1d6fbbf63baed5f043
