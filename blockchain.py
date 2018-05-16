@@ -6,7 +6,7 @@ from textwrap import dedent
 from flask import Flask, jsonify, request
 from urllib.parse import urlparse
 import requests
-
+import rsa
 
 class Blockchain(object):
     def __init__(self):
@@ -19,7 +19,12 @@ class Blockchain(object):
         self.new_block(previous_hash=1, proof=100)
 
 
+    ############################################################
     # Create a new Block in the Blockchain
+    # @param proof - the number that solved the PoW algorithm
+    # @param previous_hash - the hash of the previous block
+    # @return - the new block for the chain
+    ############################################################
     def new_block(self, proof, previous_hash=None):
         block = {
             'index': len(self.chain) + 1,
@@ -28,21 +33,37 @@ class Blockchain(object):
             'proof': proof,
             'previous_hash': previous_hash or self.hash(self.chain[-1]),
         }
-
         # Reset the current list of transactions
         self.current_transactions = []
-
         self.chain.append(block)
         return block
 
+
+    ###################################################################
     # Creates a new transaction to go into the next mined Block
+    # @param sender - the person who is initiating the transaction
+    # @param recipient - the person who is receiving the amount
+    # @param amount - the amount to send in the transaction
+    # @return - the index of the block that will hold this transaction
+    ###################################################################
     def new_transaction(self, sender, recipient, amount):
+        #generate a new key pair for each transaction -- iffy...
+        (pub, priv) = rsa.newkeys(512)
+
+        # create the message to sign
+        message = sender + recipient + str(amount)
+        message = message.encode('utf8')
+
+        # sign the contents of the message
+        sig = rsa.sign(message, priv, 'SHA-1')
+        signature = str(sig)
+
         self.current_transactions.append({
             'sender': sender,
             'recipient': recipient,
             'amount': amount,
+            'signature': signature,
         })
-
         return self.last_block['index'] + 1
 
 
@@ -51,54 +72,67 @@ class Blockchain(object):
         return self.chain[-1]
 
 
+    ################################################
     # Creates a SHA-256 hash of a Block
+    # @param block - the block that is to be hashed
+    # @return - sha256 hex digest of the the block
+    ################################################
     @staticmethod
     def hash(block):
         # We must make sure that the Dictionary is Ordered, or we'll have inconsistent hashes
         block_string = json.dumps(block, sort_keys=True).encode()
         return hashlib.sha256(block_string).hexdigest()
 
+
+    ##################################################
     # solves the proof of work algorithm
-    def proof_of_work(self, last_proof):
-        """
-        Simple Proof of Work Algorithm:
-         - Find a number p' such that hash(pp') contains leading 4 zeroes, where p is the previous p'
-         - p is the previous proof, and p' is the new proof
-        :param last_proof: <int>
-        :return: <int>
-        """
+    # @param last_block - the last block
+    # @return - the integer that solved the algorithm
+    ##################################################
+    def proof_of_work(self, last_block):
         # this is where we can be creative with how hard we want it to be to
         # mine new blocks
+        last_proof = last_block['proof']
+        last_hash = self.hash(last_block)
 
         proof = 0
-        while self.valid_proof(last_proof, proof) is False:
+        while self.valid_proof(last_proof, proof, last_hash) is False:
             proof += 1
 
         return proof
 
+
+    ####################################################
+    # checks if the proof solves the PoW algorithm
+    # @param last_proof - the previous proof
+    # @param proof - the current proof
+    # @param last_hash - the hash of the previous block
+    # @return - true if valid, false otherwise
+    ####################################################
     @staticmethod
-    def valid_proof(last_proof, proof):
-        """
-        Validates the Proof: Does hash(last_proof, proof) contain 4 leading zeroes?
-        :param last_proof: <int> Previous Proof
-        :param proof: <int> Current Proof
-        :return: <bool> True if correct, False if not.
-        """
+    def valid_proof(last_proof, proof, last_hash):
         # this is where we can be creative with how hard we want it to be to
         # mine new blocks
 
-        guess = f'{last_proof}{proof}'.encode()
+        guess = f'{last_proof}{proof}{last_hash}'.encode()
         guess_hash = hashlib.sha256(guess).hexdigest()
         return guess_hash[:4] == "0000"
 
 
+    ###########################################################
     # add a new node to the list of nodes
+    # @param address - the web address of the node to register
+    ###########################################################
     def register_node(self, address):
         parsed_url = urlparse(address)
         self.nodes.add(parsed_url.netloc)
 
 
+    #############################################################
     # determine if the blockchain is valid
+    # @param chain - the chain whose validity is in question
+    # @return - True if we have the valid chain, false otherwise
+    #############################################################
     def valid_chain(self, chain):
         last_block = chain[0]
         current_index = 1
@@ -109,21 +143,24 @@ class Blockchain(object):
             print(f'{block}')
             print("\n---------\n")
 
+            last_block_hash = self.hash(last_block)
             # check that the hash of the block is correct
-            if block['previous_hash'] != self.hash(last_block):
+            if block['previous_hash'] != last_block_hash:
                 return False
 
             # check that the PoW is correct
-            if not self.valid_proof(last_block['proof'], block['proof']):
+            if not self.valid_proof(last_block['proof'], block['proof'], last_block_hash):
                 return False
 
             last_block = block
             current_index += 1
-
         return True
 
 
-    # The consensus Algorithm: sets the chain to the longest chain in the network
+    #############################################################
+    # sets the chain to the longest chain in the network
+    # @return - True if our chain was replaced, false otherwise
+    #############################################################
     def resolve_conflicts(self):
         neighbors = self.nodes
         new_chain = None
@@ -134,7 +171,6 @@ class Blockchain(object):
         # fetch and verify all the chains in the network
         for node in neighbors:
             response = requests.get(f'http://{node}/chain')
-
             if response.status_code == 200:
                 length = response.json()['length']
                 chain = response.json()['chain']
@@ -162,13 +198,21 @@ node_identifier = str(uuid4()).replace('-', '')
 # Instantiate the Blockchain
 blockchain = Blockchain()
 
-
+# the endpoint used to mine a block
 @app.route('/mine', methods=['GET'])
 def mine():
     # We run the proof of work algorithm to get the next proof...
     last_block = blockchain.last_block
-    last_proof = last_block['proof']
-    proof = blockchain.proof_of_work(last_proof)
+    proof = blockchain.proof_of_work(last_block)
+
+    # load the private key for the miner
+    #with open('priv1.pem', mode='rb') as privateFile:
+    #    keyData = privateFile.read()
+    #privkey = rsa.PrivateKey.load_pkcs1(keyData)
+    #priv_key = str(privkey)
+    # create a signature
+    #message = 0 + node_identifier + 1
+    #signature = rsa.sign(message, privkey, 'SHA-1')
 
     # We must receive a reward for finding the proof.
     # The sender is "0" to signify that this node has mined a new coin.
@@ -191,7 +235,7 @@ def mine():
     }
     return jsonify(response), 200
 
-
+# the endpoint for creation of a new transaction
 @app.route('/transactions/new', methods=['POST'])
 def new_transaction():
     values = request.get_json()
@@ -207,6 +251,7 @@ def new_transaction():
     response = {'message': f'Transaction will be added to Block {index}'}
     return jsonify(response), 201
 
+# the endpoint to fetch the whole blockchain
 @app.route('/chain', methods=['GET'])
 def full_chain():
     response = {
@@ -215,6 +260,7 @@ def full_chain():
     }
     return jsonify(response), 200
 
+# the endpoint to register a new node
 @app.route('/nodes/register', methods=['POST'])
 def register_nodes():
     values = request.get_json()
@@ -232,7 +278,7 @@ def register_nodes():
     }
     return jsonify(response), 201
 
-
+# the endpoint to resolve chain confliction
 @app.route('/nodes/resolve', methods=['GET'])
 def consensus():
     replaced = blockchain.resolve_conflicts()
@@ -251,7 +297,7 @@ def consensus():
     return jsonify(response), 200
 
 
-
+# check for a port variable to simulate multiple users/nodes
 if __name__ == '__main__':
     from argparse import ArgumentParser
 
