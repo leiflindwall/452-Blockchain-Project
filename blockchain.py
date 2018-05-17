@@ -55,14 +55,19 @@ class Blockchain(object):
         #generate a new key pair for each transaction -- iffy...
         #(pub, priv) = rsa.newkeys(512)
 
+
         # the public key of the user/node - needed to sign transactions
         # can use the keygen to create as many keypairs as needed
         with open(args.private_key_file, mode='rb') as privatefile:
             keydata = privatefile.read()
         priv =  rsa.PrivateKey.load_pkcs1(keydata)
 
+        # use a timestamp to prevent duplicate transactions like in the case
+        # where the same miner mines multiple blocks - this adds extra security!
+        ts = time()
+
         # create the message to sign
-        message = sender + recipient + str(amount)
+        message = sender + recipient + str(amount) + str(ts)
         message = message.encode('utf8')
 
         # sign the contents of the message

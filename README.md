@@ -3,39 +3,37 @@ Implementation of a Secure Blockchain in Python
 
 What we still have to do:
 
-  -add a timestamp to each transaction to make blocks mined by the same miner have unique rsa signatures
-
   -Figure out our own Proof-of-Work problem to solve for originality
 
-  -should support at least 3 users and three miners
+  -should support at least 3 users and 3 miners
 
 
 Instructions:
 
-  -install python3.6 
-        
+  -install python3.6
+
         https://askubuntu.com/questions/865554/how-do-i-install-python-3-6-using-apt-get?utm_medium=organic&utm_source=google_rich_qa&utm_campaign=google_rich_qa
 
    -install flask for python
-   
+
         sudo apt-get install python3-flask
 
    -install python3-rsa
-   
+
         sudo apt-get install python3-rsa
 
    -install an http client - I am using postman
-        
+
         https://gist.github.com/SanderTheDragon/1331397932abaa1d6fbbf63baed5f043
 
 Usage:
 
-  -Generate keys by running 
-  
-        python3.6 keygen.py "pubkeyfile.pem" "privkeyfile.pem" 
+  -Generate keys by running
 
-  -run an instance of the blockchain by typing 
-  
+        python3.6 keygen.py "pubkeyfile.pem" "privkeyfile.pem"
+
+  -run an instance of the blockchain by typing
+
         python3.6 blockchain.py "privkeyfile.pem"
 
   -run more virtual instances on different ports with pipenv:
