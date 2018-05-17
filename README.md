@@ -1,7 +1,9 @@
-# 452-Blockchain-Project
-Implementation of a Blockchain in Python
+# 452-Secure-Blockchain-Project
+Implementation of a Secure Blockchain in Python
 
 What we still have to do:
+
+  -add a timestamp to each transaction to make blocks mined by the same miner have unique rsa signatures
 
   -Figure out our own Proof-of-Work problem to solve for originality
 
