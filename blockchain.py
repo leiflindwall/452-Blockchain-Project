@@ -1,12 +1,15 @@
 import hashlib
 import json
+import requests
+import rsa
+import sys
 from time import time
 from uuid import uuid4
 from textwrap import dedent
 from flask import Flask, jsonify, request
 from urllib.parse import urlparse
-import requests
-import rsa
+
+
 
 class Blockchain(object):
     def __init__(self):
@@ -39,6 +42,7 @@ class Blockchain(object):
         return block
 
 
+
     ###################################################################
     # Creates a new transaction to go into the next mined Block
     # @param sender - the person who is initiating the transaction
@@ -47,8 +51,15 @@ class Blockchain(object):
     # @return - the index of the block that will hold this transaction
     ###################################################################
     def new_transaction(self, sender, recipient, amount):
+
         #generate a new key pair for each transaction -- iffy...
-        (pub, priv) = rsa.newkeys(512)
+        #(pub, priv) = rsa.newkeys(512)
+
+        # the public key of the user/node - needed to sign transactions
+        # can use the keygen to create as many keypairs as needed
+        with open(args.private_key_file, mode='rb') as privatefile:
+            keydata = privatefile.read()
+        priv =  rsa.PrivateKey.load_pkcs1(keydata)
 
         # create the message to sign
         message = sender + recipient + str(amount)
@@ -162,30 +173,31 @@ class Blockchain(object):
     # @return - True if our chain was replaced, false otherwise
     #############################################################
     def resolve_conflicts(self):
-        neighbors = self.nodes
+        neighbours = self.nodes
         new_chain = None
 
-        # we are looking for a longer chain
+        # We're only looking for chains longer than ours
         max_length = len(self.chain)
 
-        # fetch and verify all the chains in the network
-        for node in neighbors:
+        # Grab and verify the chains from all the nodes in our network
+        for node in neighbours:
             response = requests.get(f'http://{node}/chain')
+
             if response.status_code == 200:
                 length = response.json()['length']
                 chain = response.json()['chain']
 
-                # check if the length is longer and the chain is valid
+                # Check if the length is longer and the chain is valid
                 if length > max_length and self.valid_chain(chain):
                     max_length = length
                     new_chain = chain
 
-                # replace the chain if we found the new longer chain
-                if new_chain:
-                    self.chain = new_chain
-                    return True
+        # Replace our chain if we discovered a new, valid chain longer than ours
+        if new_chain:
+            self.chain = new_chain
+            return True
 
-                return False
+        return False
 
 
 
@@ -198,21 +210,13 @@ node_identifier = str(uuid4()).replace('-', '')
 # Instantiate the Blockchain
 blockchain = Blockchain()
 
+
 # the endpoint used to mine a block
 @app.route('/mine', methods=['GET'])
 def mine():
     # We run the proof of work algorithm to get the next proof...
     last_block = blockchain.last_block
     proof = blockchain.proof_of_work(last_block)
-
-    # load the private key for the miner
-    #with open('priv1.pem', mode='rb') as privateFile:
-    #    keyData = privateFile.read()
-    #privkey = rsa.PrivateKey.load_pkcs1(keyData)
-    #priv_key = str(privkey)
-    # create a signature
-    #message = 0 + node_identifier + 1
-    #signature = rsa.sign(message, privkey, 'SHA-1')
 
     # We must receive a reward for finding the proof.
     # The sender is "0" to signify that this node has mined a new coin.
@@ -303,6 +307,7 @@ if __name__ == '__main__':
 
     parser = ArgumentParser()
     parser.add_argument('-p', '--port', default=5000, type=int, help='port to listen on')
+    parser.add_argument("private_key_file", type=str)
     args = parser.parse_args()
     port = args.port
 
