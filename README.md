@@ -1,12 +1,22 @@
 # 452-Secure-Blockchain-Project
 Implementation of a Secure Blockchain in Python
 
-What we still have to do:
+Team Members: Alan Adame aadame4@csu.fullerton.edu Douglas Galm douglasgalm@csu.fullerton.edu Johnson Lien johnsonlien95@csu.fullerton.edu Michael Lindwall michaellindwall@csu.fullerton.edu
 
-  -Figure out our own Proof-of-Work problem to solve for originality
-
-  -should support at least 3 users and 3 miners
-
+Team Collaboration: We all decided that blockchain was a cool new up-and-coming
+technology that we heard about and wanted to know how it really works under the
+hood.  We all began by reading up on the links given to us in the assignment,
+and individually built the basic blockchain functionality and interface.  Once
+we had the basics down, our next task was to implement extra security features.
+Doug first tried to import our Assignment 3 RSA signer to use for signatures,
+but he ran into difficulties with python2/3 compatibility issues.  The Michael
+tried a new RSA library made for python3 and added it to the blockchain.  A
+key generator tool was developed to generate RSA keypairs for use by the multiple
+nodes.  Once the signatures were added, Johnson realized that identical transactions
+create the same fingerprint when only signing the message as (sender, receiver, amount),
+so he added a timestamp to the message to create a unique signature for duplicate
+transactions.  After thorough testing by Alan, we decided that our project was
+complete and ready for presentation.  
 
 Instructions:
 
@@ -17,10 +27,16 @@ Instructions:
    -install flask for python
 
         sudo apt-get install python3-flask
+        pip install flask
 
    -install python3-rsa
 
         sudo apt-get install python3-rsa
+        pip install rsa
+
+   -install other requirements:
+
+        pip install requests
 
    -install an http client - I am using postman
 
