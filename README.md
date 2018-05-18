@@ -9,8 +9,8 @@ hood.  We all began by reading up on the links given to us in the assignment,
 and individually built the basic blockchain functionality and interface.  Once
 we had the basics down, our next task was to implement extra security features.
 Doug first tried to import our Assignment 3 RSA signer to use for signatures,
-but he ran into difficulties with python2/3 compatibility issues.  The Michael
-tried a new RSA library made for python3 and added it to the blockchain.  A
+but he ran into difficulties with python2/3 compatibility issues.  Then Michael
+tried a new RSA library made for python3 and added it to the project.  A
 key generator tool was developed to generate RSA keypairs for use by the multiple
 nodes.  Once the signatures were added, Johnson realized that identical transactions
 create the same fingerprint when only signing the message as (sender, receiver, amount),
